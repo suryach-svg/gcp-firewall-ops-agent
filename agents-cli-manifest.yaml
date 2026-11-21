@@ -1,0 +1,6 @@
+name: gcp-firewall-ops-agent
+agent_directory: firewall_ops_agent
+region: us-central1
+language: python
+base_template: adk_python
+framework: google-adk

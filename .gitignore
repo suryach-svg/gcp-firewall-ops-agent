@@ -1,0 +1,36 @@
+# Secrets and local configuration - never commit
+.env
+*.env.local
+*service-account*.json
+*credentials*.json
+
+# Local agent data (SQLite sessions/memory)
+.adk_data/
+*.db
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+build/
+dist/
+
+# Terraform
+infra/terraform/.terraform/
+infra/terraform/*.tfstate
+infra/terraform/*.tfstate.*
+infra/terraform/terraform.tfvars
+infra/terraform/.terraform.lock.hcl
+
+# ADK deployment temp folders and Agents CLI eval output
+deploy_*/
+.agent_engine_tmp*/
+artifacts/
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store

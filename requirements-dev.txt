@@ -1,0 +1,6 @@
+-r requirements.txt
+google-adk[db,otel,eval]==2.15.0
+google-agents-cli>=1.15.0  # Agents CLI used by the make agents-* and playground targets
+pytest>=9.0
+pytest-asyncio>=1.0
+ruff>=0.17

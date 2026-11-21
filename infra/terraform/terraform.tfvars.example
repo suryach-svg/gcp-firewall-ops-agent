@@ -1,0 +1,8 @@
+# Copy to terraform.tfvars (git-ignored) and adjust.
+project_id          = "your-project-id"
+region              = "us-central1"
+audited_project_ids = ["your-project-id"]
+# organization_id   = "123456789012"
+# folder_ids        = ["234567890123"]
+enable_live_remediation = false
+create_api_key_secret   = false

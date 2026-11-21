@@ -1,0 +1,335 @@
+{
+  "metadata": {
+    "description": "Fictional firewall inventory for offline demos, tests and evaluation. All organization, folder and project identifiers are made up. Partner and VPN sources use RFC 5737 documentation ranges (198.51.100.0/24, 203.0.113.0/24).",
+    "version": "1.0.0"
+  },
+  "hierarchy": {
+    "organizations": {
+      "100000000001": {"display_name": "example-org.test"}
+    },
+    "folders": {
+      "200000000001": {"display_name": "Production", "parent": "organizations/100000000001"},
+      "200000000002": {"display_name": "Non-Production", "parent": "organizations/100000000001"}
+    },
+    "projects": {
+      "prod-payments-app": {"display_name": "Payments Application", "parent": "folders/200000000001"},
+      "prod-data-platform": {"display_name": "Data Platform", "parent": "folders/200000000001"},
+      "dev-sandbox-web": {"display_name": "Developer Sandbox", "parent": "folders/200000000002"}
+    }
+  },
+  "hierarchical_firewall_policies": [
+    {
+      "name": "org-baseline-policy",
+      "attached_to": "organizations/100000000001",
+      "rules": [
+        {
+          "ruleName": "org-allow-iap-admin",
+          "description": "Allow SSH and RDP only through Identity-Aware Proxy TCP forwarding.",
+          "priority": 100,
+          "direction": "INGRESS",
+          "action": "allow",
+          "match": {"srcIpRanges": ["35.235.240.0/20"], "layer4Configs": [{"ipProtocol": "tcp", "ports": ["22", "3389"]}]},
+          "targetResources": [],
+          "enableLogging": true,
+          "disabled": false
+        },
+        {
+          "ruleName": "org-deny-cleartext-protocols",
+          "description": "Block legacy cleartext protocols organization-wide.",
+          "priority": 200,
+          "direction": "INGRESS",
+          "action": "deny",
+          "match": {"srcIpRanges": ["0.0.0.0/0"], "layer4Configs": [{"ipProtocol": "tcp", "ports": ["21", "23"]}]},
+          "targetResources": [],
+          "enableLogging": true,
+          "disabled": false
+        },
+        {
+          "ruleName": "org-legacy-break-glass-ssh",
+          "description": "TEMPORARY break-glass SSH access added during an incident. Owner unknown.",
+          "priority": 300,
+          "direction": "INGRESS",
+          "action": "allow",
+          "match": {"srcIpRanges": ["0.0.0.0/0"], "layer4Configs": [{"ipProtocol": "tcp", "ports": ["22"]}]},
+          "targetResources": [],
+          "enableLogging": false,
+          "disabled": false
+        },
+        {
+          "ruleName": "org-delegate-to-lower-levels",
+          "description": "Hand off all other traffic decisions to folder and project policies.",
+          "priority": 65000,
+          "direction": "INGRESS",
+          "action": "goto_next",
+          "match": {"srcIpRanges": ["0.0.0.0/0"], "layer4Configs": [{"ipProtocol": "all"}]},
+          "targetResources": [],
+          "enableLogging": false,
+          "disabled": false
+        }
+      ]
+    },
+    {
+      "name": "prod-folder-policy",
+      "attached_to": "folders/200000000001",
+      "rules": [
+        {
+          "ruleName": "prod-allow-https-to-load-balancers",
+          "description": "Public HTTPS to production frontends.",
+          "priority": 1000,
+          "direction": "INGRESS",
+          "action": "allow",
+          "match": {"srcIpRanges": ["0.0.0.0/0"], "layer4Configs": [{"ipProtocol": "tcp", "ports": ["443"]}]},
+          "targetResources": [],
+          "targetServiceAccounts": ["frontend-sa@prod-payments-app.iam.gserviceaccount.com"],
+          "enableLogging": true,
+          "disabled": false
+        },
+        {
+          "ruleName": "prod-deny-rdp-from-internet",
+          "description": "No RDP from the internet in production.",
+          "priority": 1100,
+          "direction": "INGRESS",
+          "action": "deny",
+          "match": {"srcIpRanges": ["0.0.0.0/0"], "layer4Configs": [{"ipProtocol": "tcp", "ports": ["3389"]}]},
+          "targetResources": [],
+          "enableLogging": true,
+          "disabled": false
+        },
+        {
+          "ruleName": "prod-delegate-to-projects",
+          "description": "Let project VPC firewall rules decide everything else.",
+          "priority": 2000,
+          "direction": "INGRESS",
+          "action": "goto_next",
+          "match": {"srcIpRanges": ["0.0.0.0/0"], "layer4Configs": [{"ipProtocol": "all"}]},
+          "targetResources": [],
+          "enableLogging": false,
+          "disabled": false
+        }
+      ]
+    },
+    {
+      "name": "nonprod-folder-policy",
+      "attached_to": "folders/200000000002",
+      "rules": [
+        {
+          "ruleName": "nonprod-allow-everything-for-testing",
+          "description": "Opened up for a hackathon and never closed.",
+          "priority": 500,
+          "direction": "INGRESS",
+          "action": "allow",
+          "match": {"srcIpRanges": ["0.0.0.0/0"], "layer4Configs": [{"ipProtocol": "all"}]},
+          "targetResources": [],
+          "enableLogging": false,
+          "disabled": false
+        }
+      ]
+    }
+  ],
+  "vpc_firewall_rules": {
+    "prod-payments-app": [
+      {
+        "name": "default-allow-ssh",
+        "network": "https://www.googleapis.com/compute/v1/projects/prod-payments-app/global/networks/default",
+        "direction": "INGRESS",
+        "priority": 65534,
+        "sourceRanges": ["0.0.0.0/0"],
+        "allowed": [{"IPProtocol": "tcp", "ports": ["22"]}],
+        "description": "Allow SSH from anywhere",
+        "logConfig": {"enable": false},
+        "disabled": false
+      },
+      {
+        "name": "default-allow-rdp",
+        "network": "https://www.googleapis.com/compute/v1/projects/prod-payments-app/global/networks/default",
+        "direction": "INGRESS",
+        "priority": 65534,
+        "sourceRanges": ["0.0.0.0/0"],
+        "allowed": [{"IPProtocol": "tcp", "ports": ["3389"]}],
+        "description": "Allow RDP from anywhere",
+        "logConfig": {"enable": false},
+        "disabled": false
+      },
+      {
+        "name": "default-allow-internal",
+        "network": "https://www.googleapis.com/compute/v1/projects/prod-payments-app/global/networks/default",
+        "direction": "INGRESS",
+        "priority": 65534,
+        "sourceRanges": ["10.128.0.0/9"],
+        "allowed": [
+          {"IPProtocol": "tcp", "ports": ["0-65535"]},
+          {"IPProtocol": "udp", "ports": ["0-65535"]},
+          {"IPProtocol": "icmp"}
+        ],
+        "description": "Allow internal traffic on the default network",
+        "logConfig": {"enable": false},
+        "disabled": false
+      },
+      {
+        "name": "allow-mysql-from-anywhere",
+        "network": "https://www.googleapis.com/compute/v1/projects/prod-payments-app/global/networks/payments-vpc",
+        "direction": "INGRESS",
+        "priority": 1000,
+        "sourceRanges": ["0.0.0.0/0"],
+        "targetTags": ["payments-db"],
+        "allowed": [{"IPProtocol": "tcp", "ports": ["3306"]}],
+        "description": "Temporary access for a vendor migration",
+        "logConfig": {"enable": false},
+        "disabled": false
+      },
+      {
+        "name": "allow-https-frontend",
+        "network": "https://www.googleapis.com/compute/v1/projects/prod-payments-app/global/networks/payments-vpc",
+        "direction": "INGRESS",
+        "priority": 1000,
+        "sourceRanges": ["0.0.0.0/0"],
+        "targetTags": ["payments-web"],
+        "allowed": [{"IPProtocol": "tcp", "ports": ["443"]}],
+        "description": "Public HTTPS to the payments frontend",
+        "logConfig": {"enable": true},
+        "disabled": false
+      },
+      {
+        "name": "allow-iap-ssh",
+        "network": "https://www.googleapis.com/compute/v1/projects/prod-payments-app/global/networks/payments-vpc",
+        "direction": "INGRESS",
+        "priority": 900,
+        "sourceRanges": ["35.235.240.0/20"],
+        "targetTags": ["iap-ssh"],
+        "allowed": [{"IPProtocol": "tcp", "ports": ["22"]}],
+        "description": "SSH through Identity-Aware Proxy TCP forwarding",
+        "logConfig": {"enable": true},
+        "disabled": false
+      },
+      {
+        "name": "allow-partner-wide-port-range",
+        "network": "https://www.googleapis.com/compute/v1/projects/prod-payments-app/global/networks/payments-vpc",
+        "direction": "INGRESS",
+        "priority": 1200,
+        "sourceRanges": ["203.0.113.0/24"],
+        "targetTags": ["partner-gateway"],
+        "allowed": [{"IPProtocol": "tcp", "ports": ["1024-65535"]}],
+        "description": "Partner settlement integration",
+        "logConfig": {"enable": false},
+        "disabled": false
+      },
+      {
+        "name": "allow-legacy-telnet",
+        "network": "https://www.googleapis.com/compute/v1/projects/prod-payments-app/global/networks/payments-vpc",
+        "direction": "INGRESS",
+        "priority": 1000,
+        "sourceRanges": ["0.0.0.0/0"],
+        "allowed": [{"IPProtocol": "tcp", "ports": ["23"]}],
+        "description": "Legacy terminal for an old payment switch",
+        "logConfig": {"enable": false},
+        "disabled": false
+      },
+      {
+        "name": "deny-telnet-from-internet",
+        "network": "https://www.googleapis.com/compute/v1/projects/prod-payments-app/global/networks/payments-vpc",
+        "direction": "INGRESS",
+        "priority": 2000,
+        "sourceRanges": ["0.0.0.0/0"],
+        "denied": [{"IPProtocol": "tcp", "ports": ["23"]}],
+        "description": "Security baseline: block Telnet",
+        "logConfig": {"enable": true},
+        "disabled": false
+      },
+      {
+        "name": "allow-all-egress",
+        "network": "https://www.googleapis.com/compute/v1/projects/prod-payments-app/global/networks/payments-vpc",
+        "direction": "EGRESS",
+        "priority": 1000,
+        "destinationRanges": ["0.0.0.0/0"],
+        "allowed": [{"IPProtocol": "all"}],
+        "description": "Allow all outbound traffic",
+        "logConfig": {"enable": false},
+        "disabled": false
+      },
+      {
+        "name": "old-vendor-access-disabled",
+        "network": "https://www.googleapis.com/compute/v1/projects/prod-payments-app/global/networks/payments-vpc",
+        "direction": "INGRESS",
+        "priority": 1000,
+        "sourceRanges": ["198.51.100.0/24"],
+        "allowed": [{"IPProtocol": "tcp", "ports": ["8443"]}],
+        "description": "Vendor contract ended in 2024",
+        "logConfig": {"enable": false},
+        "disabled": true
+      }
+    ],
+    "prod-data-platform": [
+      {
+        "name": "allow-elasticsearch-public",
+        "network": "https://www.googleapis.com/compute/v1/projects/prod-data-platform/global/networks/data-vpc",
+        "direction": "INGRESS",
+        "priority": 1000,
+        "sourceRanges": ["0.0.0.0/0"],
+        "targetTags": ["search-cluster"],
+        "allowed": [{"IPProtocol": "tcp", "ports": ["9200", "9300"]}],
+        "description": "Quick dashboard access for analysts",
+        "logConfig": {"enable": false},
+        "disabled": false
+      },
+      {
+        "name": "allow-redis-from-internal",
+        "network": "https://www.googleapis.com/compute/v1/projects/prod-data-platform/global/networks/data-vpc",
+        "direction": "INGRESS",
+        "priority": 1000,
+        "sourceRanges": ["10.0.0.0/8"],
+        "targetTags": ["cache"],
+        "allowed": [{"IPProtocol": "tcp", "ports": ["6379"]}],
+        "description": "Application tier to Redis",
+        "logConfig": {"enable": false},
+        "disabled": false
+      },
+      {
+        "name": "allow-ssh-from-corp-vpn",
+        "network": "https://www.googleapis.com/compute/v1/projects/prod-data-platform/global/networks/data-vpc",
+        "direction": "INGRESS",
+        "priority": 1000,
+        "sourceRanges": ["198.51.100.0/24"],
+        "targetTags": ["bastion"],
+        "allowed": [{"IPProtocol": "tcp", "ports": ["22"]}],
+        "description": "Corporate VPN egress range to the bastion host",
+        "logConfig": {"enable": true},
+        "disabled": false
+      },
+      {
+        "name": "allow-snmp-monitoring",
+        "network": "https://www.googleapis.com/compute/v1/projects/prod-data-platform/global/networks/data-vpc",
+        "direction": "INGRESS",
+        "priority": 1000,
+        "sourceRanges": ["0.0.0.0/0"],
+        "allowed": [{"IPProtocol": "udp", "ports": ["161"]}],
+        "description": "Third-party monitoring SaaS",
+        "logConfig": {"enable": false},
+        "disabled": false
+      }
+    ],
+    "dev-sandbox-web": [
+      {
+        "name": "allow-all-ingress-dev",
+        "network": "https://www.googleapis.com/compute/v1/projects/dev-sandbox-web/global/networks/default",
+        "direction": "INGRESS",
+        "priority": 1000,
+        "allowed": [{"IPProtocol": "all"}],
+        "description": "Make debugging easy (no source specified)",
+        "logConfig": {"enable": false},
+        "disabled": false
+      },
+      {
+        "name": "allow-http-dev",
+        "network": "https://www.googleapis.com/compute/v1/projects/dev-sandbox-web/global/networks/default",
+        "direction": "INGRESS",
+        "priority": 1000,
+        "sourceRanges": ["0.0.0.0/0"],
+        "targetTags": ["web"],
+        "allowed": [{"IPProtocol": "tcp", "ports": ["80", "8080"]}],
+        "description": "Preview environments",
+        "logConfig": {"enable": true},
+        "disabled": false
+      }
+    ]
+  }
+}

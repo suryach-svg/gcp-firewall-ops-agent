@@ -1,0 +1,5 @@
+# Runtime dependencies (also installed into the Agent Runtime container by `adk deploy agent_engine`).
+google-adk[db,otel]==2.15.0
+google-cloud-compute>=1.58.0
+google-cloud-secret-manager>=2.32.0
+google-cloud-dlp>=3.40.0

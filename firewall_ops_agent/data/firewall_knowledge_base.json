@@ -1,0 +1,144 @@
+{
+  "metadata": {
+    "description": "Curated Google Cloud firewall best practices used for retrieval-augmented coaching. Each article maps to one or more risk checks.",
+    "version": "1.0.0"
+  },
+  "articles": [
+    {
+      "id": "KB-IAP-ADMIN",
+      "title": "Use Identity-Aware Proxy TCP forwarding instead of exposing SSH or RDP",
+      "check_ids": ["FW-001"],
+      "tags": ["ssh", "rdp", "iap", "bastion", "admin", "22", "3389", "remote access", "brute force"],
+      "content": "Never allow tcp:22 or tcp:3389 from 0.0.0.0/0. Create an ingress allow rule whose only source is the IAP TCP forwarding range 35.235.240.0/20, limited to tcp:22 (and tcp:3389 for Windows), and scope it to tagged instances or a target service account. Grant engineers the IAP-secured Tunnel User role (roles/iap.tunnelResourceAccessor) and connect with 'gcloud compute ssh INSTANCE --tunnel-through-iap'. Instances then need no external IP address, every session is authenticated with Google identity, and access is audited in Cloud Audit Logs. Remove legacy rules such as default-allow-ssh and default-allow-rdp once IAP access works.",
+      "references": ["https://cloud.google.com/iap/docs/using-tcp-forwarding"]
+    },
+    {
+      "id": "KB-DB-EXPOSURE",
+      "title": "Never expose database, cache or search ports to the internet",
+      "check_ids": ["FW-002"],
+      "tags": ["database", "mysql", "postgres", "redis", "elasticsearch", "mongodb", "memcached", "3306", "5432", "6379", "9200", "data breach", "private service connect"],
+      "content": "Data stores should only be reachable from the application tier. Restrict sources to the application subnet CIDR or, better, target the database VMs with a service account and allow only the application's service account as source. Prefer private connectivity: Cloud SQL with private IP and the Cloud SQL Auth Proxy, Memorystore with private service access, or Private Service Connect for managed services. If an analyst needs a dashboard, publish it behind an authenticated HTTPS load balancer instead of opening the data port. Internet-exposed Elasticsearch, MongoDB and Redis instances are routinely discovered by scanners within hours and wiped or ransomed.",
+      "references": ["https://cloud.google.com/sql/docs/mysql/sql-proxy", "https://cloud.google.com/vpc/docs/private-service-connect"]
+    },
+    {
+      "id": "KB-ANY-ANY",
+      "title": "Avoid allow-all rules (any protocol, any port)",
+      "check_ids": ["FW-003"],
+      "tags": ["allow all", "any any", "all protocols", "open firewall", "default deny", "0.0.0.0/0"],
+      "content": "An ingress rule that allows all protocols from 0.0.0.0/0 exposes every listening service on the targeted VMs. Google Cloud VPC networks already have an implied deny-all ingress rule, so the secure pattern is deny by default plus narrow, purpose-specific allow rules. Remember that an ingress VPC firewall rule with no source specified defaults to 0.0.0.0/0. Replace any-any rules with explicit protocol and port lists, scoped to target service accounts, and add Firewall Rules Logging so unexpected traffic is visible.",
+      "references": ["https://cloud.google.com/firewall/docs/firewalls"]
+    },
+    {
+      "id": "KB-PORT-RANGES",
+      "title": "Keep port ranges as narrow as possible",
+      "check_ids": ["FW-004"],
+      "tags": ["port range", "wide ports", "ephemeral", "least privilege", "partner"],
+      "content": "Allowing large port ranges (for example 1024-65535) publishes services nobody intended to expose and makes a rule's purpose impossible to audit. Ask the application owner for the exact listening ports, split unrelated services into separate rules with descriptive names, and document the business owner in the rule description. Return traffic does not need wide ranges because Google Cloud firewall rules are stateful: responses to allowed connections are automatically permitted.",
+      "references": ["https://cloud.google.com/firewall/docs/firewalls"]
+    },
+    {
+      "id": "KB-CLEARTEXT",
+      "title": "Retire cleartext and legacy protocols",
+      "check_ids": ["FW-005"],
+      "tags": ["telnet", "ftp", "snmp", "smb", "netbios", "ldap", "pop3", "cleartext", "legacy", "23", "21", "161"],
+      "content": "Telnet, FTP, TFTP, SNMPv1/v2c, rsh/rlogin, POP3 and unencrypted LDAP send credentials or data in cleartext. Replace them with encrypted alternatives (SSH instead of Telnet, SFTP or HTTPS instead of FTP, SNMPv3, LDAPS). If a legacy system cannot be upgraded yet, isolate it on a dedicated subnet, allow access only from a narrow trusted range over Cloud VPN or Interconnect, and set a decommission date in the rule description.",
+      "references": ["https://cloud.google.com/firewall/docs/firewalls"]
+    },
+    {
+      "id": "KB-TARGETING",
+      "title": "Scope rules with service accounts or secure tags, not the whole network",
+      "check_ids": ["FW-006"],
+      "tags": ["target tags", "service account", "secure tags", "scope", "blast radius", "network tags"],
+      "content": "A rule without targets applies to every VM in the VPC network (or, for a hierarchical policy rule, every VM under the organization or folder), including VMs created in the future. Target service accounts are the strongest option for VPC firewall rules because changing a VM's service account requires stopping it and IAM permission on the service account, whereas network tags can be edited by anyone with instance admin rights. For network and hierarchical firewall policies, use IAM-governed secure tags (Resource Manager tags).",
+      "references": ["https://cloud.google.com/firewall/docs/tags-firewalls-overview", "https://cloud.google.com/firewall/docs/firewalls"]
+    },
+    {
+      "id": "KB-LOGGING",
+      "title": "Enable Firewall Rules Logging on internet-facing rules",
+      "check_ids": ["FW-007"],
+      "tags": ["logging", "firewall rules logging", "detection", "incident response", "audit", "siem"],
+      "content": "Firewall Rules Logging records each connection matched by a rule, which is essential for detecting scanning, investigating incidents and proving that a rule is still needed. Enable it on every rule that allows traffic from the internet and on important deny rules. To control cost, exclude metadata fields you do not need. Export logs to your SIEM (for example Google Security Operations) and use Firewall Insights to find unused or overly permissive rules based on the logged hit counts.",
+      "references": ["https://cloud.google.com/firewall/docs/firewall-rules-logging", "https://cloud.google.com/network-intelligence-center/docs/firewall-insights/concepts/overview"]
+    },
+    {
+      "id": "KB-EGRESS",
+      "title": "Restrict egress to reduce data exfiltration risk",
+      "check_ids": ["FW-008"],
+      "tags": ["egress", "outbound", "exfiltration", "command and control", "nat", "private google access"],
+      "content": "Google Cloud has an implied allow-all egress rule, and many projects add an explicit allow-all egress rule too. For sensitive workloads, add a low-priority (for example 65000) deny-all egress rule and higher-priority allow rules for required destinations only, such as tcp:443 to approved partner ranges. Use Private Google Access so VMs reach Google APIs without broad internet egress, and Cloud NAT for controlled outbound access. Log the deny-all egress rule to detect compromised workloads trying to call out.",
+      "references": ["https://cloud.google.com/firewall/docs/firewalls"]
+    },
+    {
+      "id": "KB-DEFAULT-NETWORK",
+      "title": "Remove the default network and its permissive default rules",
+      "check_ids": ["FW-009"],
+      "tags": ["default network", "default-allow-ssh", "default-allow-rdp", "default-allow-internal", "org policy"],
+      "content": "New projects can be created with a default VPC network containing default-allow-ssh, default-allow-rdp, default-allow-icmp and default-allow-internal rules that are broad by design. Build custom-mode VPC networks with intentional rules instead, delete the default network, and enforce the organization policy constraint compute.skipDefaultNetworkCreation so future projects start clean.",
+      "references": ["https://cloud.google.com/vpc/docs/vpc", "https://cloud.google.com/resource-manager/docs/organization-policy/org-policy-constraints"]
+    },
+    {
+      "id": "KB-HYGIENE",
+      "title": "Delete disabled, unused and redundant rules",
+      "check_ids": ["FW-010"],
+      "tags": ["hygiene", "disabled rule", "unused", "cleanup", "firewall insights"],
+      "content": "Disabled and unused rules hide intent and are easy to re-enable by mistake during an incident. Review rules quarterly: Firewall Insights reports shadowed rules, rules with no hits in the observation period and overly permissive rules. Delete what is no longer needed and keep firewall configuration in infrastructure as code (for example Terraform) so every change is reviewed.",
+      "references": ["https://cloud.google.com/network-intelligence-center/docs/firewall-insights/concepts/overview"]
+    },
+    {
+      "id": "KB-HIERARCHY-ORDER",
+      "title": "How hierarchical firewall policy evaluation order works",
+      "check_ids": ["FW-011", "FW-012"],
+      "tags": ["hierarchical firewall policy", "organization", "folder", "evaluation order", "goto_next", "priority", "inheritance"],
+      "content": "For a VM, Google Cloud evaluates organization firewall policy rules first, then folder policies from the top folder down, then the project's VPC firewall rules and network firewall policies. Within a policy, rules are evaluated from the lowest priority number to the highest. An 'allow' or 'deny' match ends evaluation immediately, while 'goto_next' hands the decision to the next level. Consequently an organization-level allow from 0.0.0.0/0 cannot be overridden by a project deny rule, and an organization-level deny blocks traffic even if a project allows it. Use org and folder policies for guardrails (mandatory denies, approved admin paths) and goto_next for everything else.",
+      "references": ["https://cloud.google.com/firewall/docs/firewall-policies-overview", "https://cloud.google.com/firewall/docs/firewall-policies"]
+    },
+    {
+      "id": "KB-SHADOWING",
+      "title": "Understand and fix shadowed rules",
+      "check_ids": ["FW-012"],
+      "tags": ["shadowed", "redundant", "priority", "conflict", "overlap", "deny never applies"],
+      "content": "A rule is shadowed when a rule evaluated earlier matches all of the same traffic with the opposite action. A shadowed deny is dangerous because the team believes traffic is blocked while an earlier allow always wins. Within one VPC network, lower priority numbers win and a deny wins over an allow at the same priority. Fix shadowed denies by giving them a lower priority number than the conflicting allow, or by tightening the allow. Shadowed allows are dead configuration and should be removed.",
+      "references": ["https://cloud.google.com/network-intelligence-center/docs/firewall-insights/concepts/overview", "https://cloud.google.com/firewall/docs/firewalls"]
+    },
+    {
+      "id": "KB-LATERAL",
+      "title": "Limit lateral movement inside the VPC",
+      "check_ids": ["FW-013"],
+      "tags": ["lateral movement", "internal", "segmentation", "10.0.0.0/8", "zero trust", "micro-segmentation"],
+      "content": "Allowing an entire RFC 1918 block such as 10.0.0.0/8 to reach SSH, RDP or databases means any compromised workload can pivot to those services. Segment by workload: allow only the subnet or source service account that genuinely needs access, and apply separate rules per tier (web, app, data). Combine with IAP for administrative access so humans never need direct network paths.",
+      "references": ["https://cloud.google.com/firewall/docs/firewalls"]
+    },
+    {
+      "id": "KB-PRIORITY-NAMING",
+      "title": "Priority bands and naming conventions",
+      "check_ids": [],
+      "tags": ["naming", "priority", "conventions", "governance", "standards", "write better rules"],
+      "content": "Write rules that explain themselves. Use a naming convention such as {env}-{direction}-{action}-{service}-{source}, for example prod-ingress-allow-https-from-glb. Reserve priority bands: 0-999 for security guardrails and emergency denies, 1000-49999 for application allow rules, and 65000+ for broad defaults like deny-all egress. Put the owner, ticket and expiry date in the description, enable logging on internet-facing rules, and manage rules through Terraform with code review.",
+      "references": ["https://cloud.google.com/firewall/docs/firewalls"]
+    },
+    {
+      "id": "KB-WEB-EXPOSURE",
+      "title": "Publish web workloads through a load balancer and Cloud Armor",
+      "check_ids": [],
+      "tags": ["http", "https", "443", "80", "web", "load balancer", "cloud armor", "waf", "health check"],
+      "content": "Instead of allowing tcp:80/443 from 0.0.0.0/0 directly to VMs, place them behind an external Application Load Balancer and protect it with Cloud Armor security policies (WAF rules, rate limiting, adaptive protection). The backend VMs then only need to accept traffic from the Google Front End and health-check ranges 35.191.0.0/16 and 130.211.0.0/22. Redirect HTTP to HTTPS at the load balancer.",
+      "references": ["https://cloud.google.com/armor/docs/cloud-armor-overview", "https://cloud.google.com/load-balancing/docs/health-check-concepts"]
+    },
+    {
+      "id": "KB-SCC",
+      "title": "Correlate findings with Security Command Center",
+      "check_ids": ["FW-001", "FW-002", "FW-003", "FW-005", "FW-007", "FW-008"],
+      "tags": ["security command center", "scc", "security health analytics", "open_ssh_port", "open_firewall", "findings"],
+      "content": "Security Command Center's Security Health Analytics continuously detects firewall misconfigurations such as OPEN_SSH_PORT, OPEN_RDP_PORT, OPEN_FIREWALL, OPEN_MYSQL_PORT, FIREWALL_RULE_LOGGING_DISABLED and EGRESS_DENY_RULE_NOT_SET. Use this agent's report to explain and prioritize those findings, and use SCC to track them to closure and prevent regressions across the organization.",
+      "references": ["https://cloud.google.com/security-command-center/docs/concepts-vulnerabilities-findings"]
+    },
+    {
+      "id": "KB-CHANGE-MANAGEMENT",
+      "title": "Change firewall rules safely",
+      "check_ids": [],
+      "tags": ["change management", "rollback", "connectivity tests", "terraform", "approval", "outage"],
+      "content": "Firewall changes can cause outages. Before tightening a rule, check Firewall Rules Logging or Firewall Insights hit counts to see who uses it, validate the new path with Network Intelligence Center Connectivity Tests, apply the change through infrastructure as code with peer review, and prepare a rollback. Prefer adding the new narrow rule first, then removing the broad one after confirming traffic flows.",
+      "references": ["https://cloud.google.com/network-intelligence-center/docs/connectivity-tests/concepts/overview"]
+    }
+  ]
+}
